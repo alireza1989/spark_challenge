@@ -1,5 +1,5 @@
 """
-Main Spark application
+Main Spark Application
 """
 from math import radians, cos, sin, asin, sqrt
 from pyspark import SparkContext, SparkConf
@@ -34,7 +34,6 @@ def haversine(lon1, lat1, lon2, lat2):
 conf = SparkConf().setAppName("insight")
 sc = SparkContext(conf=conf)
 distance = udf(haversine, FloatType())
-
 spark = SparkSession.builder.getOrCreate()
 
 # sc.setLogLevel("ERROR")
@@ -43,33 +42,32 @@ sc.setLogLevel("OFF")
 POIList = spark.read.option("inferSchema", "true").option("header", "true").csv("POIList.csv")
 SampleData = spark.read.option("inferSchema", "true").option("header", "true").csv("DataSample.csv")
 
+# Column name clean-up
 POIList = POIList.selectExpr("` Latitude` as POILatitude", "Longitude as POILongitude", "POIID as POIID")
 SampleData = SampleData.withColumnRenamed(" TimeSt", "TimeSt")
 
 
 SampleData.createOrReplaceTempView("sampleDF")
-
 SampleData.cache()
 POIList.cache()
 
 badData = spark.sql("""
-            SELECT sampleDF._ID
-            FROM sampleDF, sampleDF as SD
-            WHERE sampleDF._ID != SD._ID AND 
-            sampleDF.TimeSt = SD.TimeSt AND 
-            sampleDF.Latitude = SD.Latitude AND 
-            sampleDF.Longitude = SD.Longitude
-          """)
+                    SELECT sampleDF._ID
+                    FROM sampleDF, sampleDF as SD
+                    WHERE sampleDF._ID != SD._ID AND 
+                    sampleDF.TimeSt = SD.TimeSt AND 
+                    sampleDF.Latitude = SD.Latitude AND 
+                    sampleDF.Longitude = SD.Longitude
+                """)
 
 badData = badData.withColumnRenamed("_ID", "ID")
-
 badData.createOrReplaceTempView("bad_data")
 
 cleanData = spark.sql("""
-                        SELECT *
-                        FROM sampleDF
-                        LEFT OUTER JOIN bad_data ON bad_data.ID = sampleDF._ID 
-                        WHERE bad_data.ID IS NULL                 
+                      SELECT *
+                      FROM sampleDF
+                      LEFT OUTER JOIN bad_data ON bad_data.ID = sampleDF._ID 
+                      WHERE bad_data.ID IS NULL                 
                     """)
 
 cleanData = cleanData.drop(cleanData.ID)
@@ -79,11 +77,11 @@ cleanData.createOrReplaceTempView("clean_data")
 #===============================================
 
 # sanityCheck = spark.sql('''
-#                 SELECT * 
-#                 FROM clean_data 
-#                 INNER JOIN bad_data
-#                 WHERE clean_data._ID = bad_data.ID
-#               ''')
+#                         SELECT * 
+#                         FROM clean_data 
+#                         INNER JOIN bad_data
+#                         WHERE clean_data._ID = bad_data.ID
+#                     ''')
 
 # Must have zero rows
 # print("=======///////======")
@@ -93,7 +91,6 @@ cleanData.createOrReplaceTempView("clean_data")
 # test = spark.sql(""" 
 #                     SELECT * FROM clean_data WHERE _ID = '4517905'
 #                 """)
-
 # test.show()
 #===============================================
 
@@ -108,10 +105,9 @@ POIList = spark.sql("""
                  """)
                  
 POIList.createOrReplaceTempView("POI_list")
-
 dataJoinedWithPOIList = spark.sql("""
-                            SELECT * FROM clean_data CROSS JOIN POI_list
-                        """)
+                                SELECT * FROM clean_data CROSS JOIN POI_list
+                              """)
 
 # Apply the Haversine function to each row to get the distance 
 dataWithDistance = dataJoinedWithPOIList.withColumn("distance", distance(dataJoinedWithPOIList.Latitude, dataJoinedWithPOIList.Longitude, dataJoinedWithPOIList.POILatitude, dataJoinedWithPOIList.POILongitude))
@@ -134,11 +130,10 @@ lastDF = spark.sql("""
                 """)
 
 lastDF.createOrReplaceTempView('lastDF')
-
 locationsList = POIList.select('POIID').toPandas()
-
 lastDF.cache()
 
+# Group by POID
 grouped = lastDF.groupBy('POIID')
 
 # Mean for POI Locations
